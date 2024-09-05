@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E203
+ignore = E501, E722, W503, W504
+exclude = .env, env, .etl-env, bin/*, venv
