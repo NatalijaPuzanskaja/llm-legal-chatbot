@@ -146,3 +146,5 @@ client_secret.json
 local*
 
 *.csv
+
+.dev

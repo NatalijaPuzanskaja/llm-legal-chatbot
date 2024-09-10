@@ -1,15 +1,18 @@
+import os
+
+from dotenv import find_dotenv, load_dotenv
 from typing import NamedTuple
 from datetime import datetime
 
+load_dotenv(find_dotenv('.dev'))
 
 DB_CONFIGS = {
-    'dwh': {
-        'dbname': 'embeddings',
-        'user': 'dwh',
-        'password': 'asodfin2948gb9h284hf2uhg',
-        'host': 'playground.cg1vrrgv96z0.eu-west-1.rds.amazonaws.com'
-    }
+    'database': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASS'),
+    'host': os.getenv('DB_HOST'),
 }
+
 
 DATA_SOURCES = [
     {
@@ -19,7 +22,8 @@ DATA_SOURCES = [
         'content': 'src/rag_data/content/gdpr.pdf',
         'schema': 'src/rag_data/schema/gdpr.csv',
         'key_word': 'Article',
-        'start_page': 32,
+        'start_page': 31,
+        'end_page': 88,
         'updated_at': '2016-05-04'
     },
     {
@@ -28,8 +32,9 @@ DATA_SOURCES = [
         'collection_name': 'llm_legal_chatbot.ai_act_embeddings',
         'content': 'src/rag_data/content/ai_act.pdf',
         'schema': 'src/rag_data/schema/ai_act.csv',
-        'key_word': 'Art.',
+        'key_word': 'Article',
         'start_page': 43,
+        'end_page': 123,
         'updated_at': '2024-07-12'
     },
 ]
@@ -43,4 +48,26 @@ class DataSourceConfig(NamedTuple):
     schema: str
     key_word: str
     start_page: int
+    end_page: int
     updated_at: datetime
+
+
+# https://openai.com/api/pricing/
+# price per 1M tokens
+TEXT_EMBEDDING_PRICE_CONFIGS = [
+    {
+        'model': 'text-embedding-3-small',
+        'pricing': 0.020,
+        'batch_pricing': 0.010,
+    },
+    {
+        'model': 'text-embedding-3-large',
+        'pricing': 0.130,
+        'batch_pricing': 0.065,
+    },
+    {
+        'model': 'ada v2',
+        'pricing': 0.100,
+        'batch_pricing': 0.050
+    }
+]

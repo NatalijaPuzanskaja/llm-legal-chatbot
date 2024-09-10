@@ -3,12 +3,12 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-class Document(BaseModel):
-    chapter: str
+class RawDocument(BaseModel):
+    chapter: int
     chapter_name: str
-    section: Optional[str] = None
+    section: Optional[int] = None
     section_name: Optional[str] = None
-    article: str
+    article: int
     article_name: str
     url: str
     contents: str

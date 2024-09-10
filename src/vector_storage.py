@@ -2,16 +2,19 @@ from typing import Iterable, List, Optional
 
 from typing_extensions import Protocol
 
-from src.document import Document
+from src.document import RawDocument
 
 from src.utils.sql import SqlEngine, QueryBuilder
 
 
 class DocumentsStorage(Protocol):
-    def list_similar_documents(self, table_name: str, squery: str) -> List[Document]:
+    def list_documents(self, table_name: str) -> Iterable[RawDocument]:
         ...
 
-    def upsert_documents(self, table_name: str, documents: Iterable[Document]) -> None:
+    def list_similar_documents(self, table_name: str, query: str) -> List[RawDocument]:
+        ...
+
+    def upsert_documents(self, table_name: str, documents: Iterable[RawDocument]) -> None:
         ...
 
 
@@ -21,11 +24,41 @@ class RemoteDocumentsStorage(DocumentsStorage):
     def __init__(self, sql: SqlEngine) -> None:
         self.sql = sql
 
-    def list_similar_documents(self, table_name: str, query: str) -> List[Document]:
+    def list_documents(self, table_name: str) -> Iterable[RawDocument]:
+        q = f"""
+        SELECT 
+            chapter
+            , chapter_name
+            , section
+            , section_name
+            , article
+            , article_name
+            , url
+            , contents
+            , updated_time
+        FROM 
+            {table_name}
+        """
+
+        with self.sql.begin_transaction() as tx:
+            for row in tx.execute_query(q):
+                yield RawDocument(
+                    chapter=row['chapter'],
+                    chapter_name=row['chapter_name'],
+                    section=row['section'],
+                    section_name=row['section_name'],
+                    article=row['article'],
+                    article_name=row['article_name'],
+                    url=row['url'],
+                    contents=row['contents'],
+                    updated_time=row['updated_time'],
+                )
+
+    def list_similar_documents(self, table_name: str, query: str) -> List[RawDocument]:
 
         return []
 
-    def upsert_documents(self, table_name: str, documents: Iterable[Document]) -> None:
+    def upsert_documents(self, table_name: str, documents: Iterable[RawDocument]) -> None:
         q = f"""
         INSERT INTO 
             {table_name}(

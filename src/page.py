@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-class Page(BaseModel):
+class RawPage(BaseModel):
     id: int
     page: int
     contents: str
