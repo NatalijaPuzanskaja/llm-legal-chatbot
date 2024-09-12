@@ -61,7 +61,6 @@ def fetch_and_price_embeddings() -> List[dict]:
         result = []
         for data_source in DATA_SOURCES:
             data_source_config = DataSourceConfig(**data_source)
-
             documents = list(storage.list_documents(data_source_config.table_name))
 
             result += [

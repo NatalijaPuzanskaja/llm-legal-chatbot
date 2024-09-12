@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 
 class RawDocument(BaseModel):
@@ -13,3 +13,11 @@ class RawDocument(BaseModel):
     url: str
     contents: str
     updated_time: Optional[datetime] = None
+
+
+class EmbeddedDocument(BaseModel):
+    article: int
+    url: str
+    contents: str
+    tokens: int
+    embedding: Optional[List[float]] = None

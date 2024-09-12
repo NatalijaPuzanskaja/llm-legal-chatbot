@@ -1,17 +1,19 @@
+import psycopg2
+
+import numpy as np
+
 from typing import Iterable, List, Optional
-
 from typing_extensions import Protocol
+from psycopg2.extras import execute_values
+from pgvector.psycopg2 import register_vector
 
-from src.document import RawDocument
+from src.document import RawDocument, EmbeddedDocument
 
-from src.utils.sql import SqlEngine, QueryBuilder
+from src.utils.sql import SqlEngine
 
 
 class DocumentsStorage(Protocol):
     def list_documents(self, table_name: str) -> Iterable[RawDocument]:
-        ...
-
-    def list_similar_documents(self, table_name: str, query: str) -> List[RawDocument]:
         ...
 
     def upsert_documents(self, table_name: str, documents: Iterable[RawDocument]) -> None:
@@ -53,10 +55,6 @@ class RemoteDocumentsStorage(DocumentsStorage):
                     contents=row['contents'],
                     updated_time=row['updated_time'],
                 )
-
-    def list_similar_documents(self, table_name: str, query: str) -> List[RawDocument]:
-
-        return []
 
     def upsert_documents(self, table_name: str, documents: Iterable[RawDocument]) -> None:
         q = f"""
@@ -103,3 +101,26 @@ class RemoteDocumentsStorage(DocumentsStorage):
                     contents=document.contents,
                     updated_time=document.updated_time,
                 )
+
+
+# TODO: extend SqlEngine class
+def insert_embeddings(connection_string: str, table_name: str, documents: List[EmbeddedDocument]) -> None:
+    conn = psycopg2.connect(connection_string)
+    register_vector(conn)
+    cur = conn.cursor()
+
+    cur.execute(f"""DELETE FROM {table_name}""")
+
+    documents_tuples = [
+        (document.article, document.url, document.contents, document.tokens, np.array(document.embedding))
+        for document in documents
+    ]
+
+    execute_values(
+        cur,
+        f"""INSERT INTO {table_name} (article, url, contents, tokens, embedding) VALUES %s""",
+        documents_tuples
+    )
+    conn.commit()
+
+    cur.close()

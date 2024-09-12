@@ -13,6 +13,11 @@ DB_CONFIGS = {
     'host': os.getenv('DB_HOST'),
 }
 
+DB_URL = os.getenv('DB_URL')
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+LANGCHAIN_API_KEY = os.getenv('LANGCHAIN_API_KEY')
+HUGGING_FACE_API_KEY = os.getenv('HUGGING_FACE_API_KEY')
 
 DATA_SOURCES = [
     {
@@ -66,8 +71,12 @@ TEXT_EMBEDDING_PRICE_CONFIGS = [
         'batch_pricing': 0.065,
     },
     {
-        'model': 'ada v2',
+        'model': 'text-embedding-ada-002',
         'pricing': 0.100,
         'batch_pricing': 0.050
     }
 ]
+
+EMBEDDINGS_CHUNKS_SIZE = 512
+EMBEDDINGS_MODEL = 'text-embedding-ada-002'
+
