@@ -3,124 +3,111 @@ import psycopg2
 import numpy as np
 
 from typing import Iterable, List, Optional
-from typing_extensions import Protocol
+from psycopg2.pool import SimpleConnectionPool
 from psycopg2.extras import execute_values
 from pgvector.psycopg2 import register_vector
 
-from src.document import RawDocument, EmbeddedDocument
-
-from src.utils.sql import SqlEngine
-
-
-class DocumentsStorage(Protocol):
-    def list_documents(self, table_name: str) -> Iterable[RawDocument]:
-        ...
-
-    def upsert_documents(self, table_name: str, documents: Iterable[RawDocument]) -> None:
-        ...
+from src.document import EmbeddedDocument
+from src.rag_pipeline.configs import DB_CONFIGS
 
 
-class RemoteDocumentsStorage(DocumentsStorage):
-    sql: SqlEngine
+_pool = None
 
-    def __init__(self, sql: SqlEngine) -> None:
-        self.sql = sql
 
-    def list_documents(self, table_name: str) -> Iterable[RawDocument]:
-        q = f"""
-        SELECT 
-            chapter
-            , chapter_name
-            , section
-            , section_name
-            , article
-            , article_name
-            , url
-            , contents
-            , updated_time
-        FROM 
-            {table_name}
-        """
+def db():
+    global _pool
 
-        with self.sql.begin_transaction() as tx:
-            for row in tx.execute_query(q):
-                yield RawDocument(
-                    chapter=row['chapter'],
-                    chapter_name=row['chapter_name'],
-                    section=row['section'],
-                    section_name=row['section_name'],
-                    article=row['article'],
-                    article_name=row['article_name'],
-                    url=row['url'],
-                    contents=row['contents'],
-                    updated_time=row['updated_time'],
-                )
+    _pool = None
+    _pool = create_pool()
 
-    def upsert_documents(self, table_name: str, documents: Iterable[RawDocument]) -> None:
-        q = f"""
-        INSERT INTO 
-            {table_name}(
-                chapter
-                , chapter_name
-                , section
-                , section_name
-                , article
-                , article_name
-                , url
-                , contents
-                , updated_time
-            )
-        VALUES (
-            %(chapter)s
-            , %(chapter_name)s
-            , %(section)s
-            , %(section_name)s
-            , %(article)s
-            , %(article_name)s
-            , %(url)s
-            , %(contents)s
-            , %(updated_time)s
-        )
-        ON CONFLICT (article) DO UPDATE
-        SET
-            contents = %(contents)s
-            , updated_time = %(updated_time)s
-        """
+    return _pool
 
-        with self.sql.begin_transaction() as tx:
-            for document in documents:
-                tx.execute_statement(
-                    q,
-                    chapter=document.chapter,
-                    chapter_name=document.chapter_name,
-                    section=document.section,
-                    section_name=document.section_name,
-                    article=document.article,
-                    article_name=document.article_name,
-                    url=document.url,
-                    contents=document.contents,
-                    updated_time=document.updated_time,
-                )
+
+def create_pool():
+    return psycopg2.pool.SimpleConnectionPool(
+        minconn=1,
+        maxconn=2,
+        **DB_CONFIGS
+    )
+
+
+def get_pool():
+    global _pool
+
+    if _pool is None:
+        db()
+
+    return _pool
+
+
+def get_conn(pool):
+    return pool.getconn()
+
+
+def put_conn(pool, conn):
+    pool.putconn(conn)
 
 
 # TODO: extend SqlEngine class
-def insert_embeddings(connection_string: str, table_name: str, documents: List[EmbeddedDocument]) -> None:
-    conn = psycopg2.connect(connection_string)
-    register_vector(conn)
-    cur = conn.cursor()
+def get_similar_gdpr_documents(embedding_array: np.array) -> List[EmbeddedDocument]:
+    pool = get_pool()
 
-    cur.execute(f"""DELETE FROM {table_name}""")
+    with get_conn(pool) as conn:
+        register_vector(conn)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT contents FROM llm_legal_chatbot.gdpr_embeddings ORDER BY embedding <=> %s LIMIT 3",
+            (embedding_array,)
+        )
+        similar_documents = cur.fetchall()
+        cur.close()
+        conn.commit()
+
+    put_conn(pool, conn)
+
+    return similar_documents
+
+
+# TODO: extend SqlEngine class
+def get_similar_ai_act_documents(embedding_array: np.array) -> List[EmbeddedDocument]:
+    pool = get_pool()
+
+    with get_conn(pool) as conn:
+        register_vector(conn)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT contents FROM llm_legal_chatbot.ai_act_embeddings ORDER BY embedding <=> %s LIMIT 3",
+            (embedding_array,)
+        )
+        similar_documents = cur.fetchall()
+        cur.close()
+        conn.commit()
+
+    put_conn(pool, conn)
+
+    return similar_documents
+
+
+# TODO: extend SqlEngine class
+def insert_embeddings(table_name: str, documents: List[EmbeddedDocument]) -> None:
+    pool = get_pool()
+
+    delete_query = f"""DELETE FROM {table_name}"""
+    insert_query = f"""INSERT INTO {table_name} (article, url, contents, tokens, embedding) VALUES %s"""
 
     documents_tuples = [
         (document.article, document.url, document.contents, document.tokens, np.array(document.embedding))
         for document in documents
     ]
 
-    execute_values(
-        cur,
-        f"""INSERT INTO {table_name} (article, url, contents, tokens, embedding) VALUES %s""",
-        documents_tuples
-    )
-    conn.commit()
+    with get_conn(pool) as conn:
+        register_vector(conn)
+        cur = conn.cursor()
 
-    cur.close()
+        cur.execute(delete_query)
+        execute_values(cur, insert_query, documents_tuples)
+
+        cur.close()
+        conn.commit()
+
+    put_conn(pool, conn)

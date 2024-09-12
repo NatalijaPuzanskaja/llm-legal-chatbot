@@ -3,10 +3,10 @@ import traceback
 from typing import List
 from openai import OpenAI
 
-from src.vector_storage import RemoteDocumentsStorage, insert_embeddings
+from src.document_storage import RemoteDocumentsStorage
+from src.vector_storage import insert_embeddings
 from src.rag_pipeline.configs import (
     DB_CONFIGS,
-    DB_URL,
     DATA_SOURCES,
     DataSourceConfig,
     EMBEDDINGS_CHUNKS_SIZE,
@@ -106,7 +106,6 @@ def chunk_and_create_embeddings() -> None:
             embedded_documents = get_embeddings(chunked_documents)
 
             insert_embeddings(
-                connection_string=DB_URL,
                 table_name=data_source_config.collection_name,
                 documents=embedded_documents,
             )
